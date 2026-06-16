@@ -1,0 +1,23 @@
+{
+  "name": "@libernet/mvw",
+  "version": "1.0.0",
+  "description": "A minimalist MVW framework for non-upgradeable dApps.",
+  "homepage": "https://github.com/libernet-xyz/mvw.js#readme",
+  "bugs": {
+    "url": "https://github.com/libernet-xyz/mvw.js/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/libernet-xyz/mvw.js.git"
+  },
+  "license": "Apache-2.0",
+  "author": "Alberto La Rocca <alr@libernet.xyz>",
+  "type": "commonjs",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "npx tsc"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3"
+  }
+}
