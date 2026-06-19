@@ -1,3 +1,6 @@
+// Copyright 2026 The Libernet Team
+// SPDX-License-Identifier: Apache-2.0
+
 class Handler {
   private static _nextId = 1;
   public static handlers: { [id: number]: EventListener } = Object.create(null);
