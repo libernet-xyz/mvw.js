@@ -3,25 +3,25 @@
 
 class Handler {
   private static _nextId = 1;
-  private static handlers: { [id: number]: EventListener } = Object.create(null);
+  private static _handlers: { [id: number]: EventListener } = Object.create(null);
 
   static {
-    (window as any).$__mvw_handlers = Handler.handlers;
+    (window as any).$__mvw_handlers = Handler._handlers;
   }
 
   public readonly id: number;
 
   public constructor(fn: EventListener) {
     this.id = Handler._nextId++;
-    Handler.handlers[this.id] = fn;
+    Handler._handlers[this.id] = fn;
   }
 
   public toString(): string {
-    return `"$__mvw_handlers[${this.id}].call(this, event)"`;
+    return `$__mvw_handlers[${this.id}].call(this,event) `;
   }
 
   public static destroy(id: number): void {
-    delete Handler.handlers[id];
+    delete Handler._handlers[id];
   }
 }
 
@@ -57,20 +57,19 @@ export class Component {
 export type TemplateFunction = (props: Props, state?: Props) => Component;
 
 export class StateFrame {
-  private static _nextId = 0;
+  private static _nextId = 1;
 
-  public readonly id: string;
+  public readonly id: number;
   private readonly _fn: TemplateFunction;
   private readonly _props: Props;
   private _state: Props | null;
   private _component: Component;
 
   public constructor(fn: TemplateFunction, props: Props, state: Props | null) {
-    this.id = `$__mvw_state_${StateFrame._nextId++}`;
+    this.id = StateFrame._nextId++;
     this._fn = fn;
-    this._props = props;
-    this._props['self'] = this;
-    this._state = state;
+    this._props = { ...props, self: this };
+    this._state = state ? { ...state } : null;
     this._component = this.render();
   }
 
@@ -78,7 +77,10 @@ export class StateFrame {
     const component = this._state ? this._fn(this._props, this._state) : this._fn(this._props);
     const fragment = component.template.content;
     const element = fragment.childNodes[0] as Element;
-    element.id = this.id;
+    if (element.hasAttribute('data-mvw-frame')) {
+      throw new Error('the root element of a component cannot be another stateful component');
+    }
+    element.setAttribute('data-mvw-frame', '' + this.id);
     return component;
   }
 
@@ -96,7 +98,7 @@ export class StateFrame {
   }
 
   public update(state: Props): StateFrame {
-    const oldElement = document.getElementById(this.id);
+    const oldElement = document.querySelector(`[data-mvw-frame="${this.id}"]`);
     if (oldElement) {
       const children = oldElement.querySelectorAll('[data-mvw-handlers]');
       for (let i = 0; i < children.length; i++) {
@@ -149,6 +151,7 @@ export function escape(input: string): string {
 function stringify(dependency: unknown, handlers: Handler[]): string {
   switch (typeof dependency) {
     case 'undefined':
+    case 'boolean':
       return '';
     case 'string':
       return escape(dependency);
@@ -162,19 +165,22 @@ function stringify(dependency: unknown, handlers: Handler[]): string {
         return '';
       } else if (Array.isArray(dependency)) {
         return dependency.map(dependency => stringify(dependency, handlers)).join('');
+      } else if ([Component, StateFrame, SafeHtml].some(clazz => dependency instanceof clazz)) {
+        return dependency.toString();
       } else {
-        return '' + dependency;
+        try {
+          return escape('' + dependency);
+        } catch {
+          return '';
+        }
       }
     default:
       return '' + dependency;
   }
 }
 
-export function mvw(pieces: TemplateStringsArray, ...dependencies: unknown[]): Component | null {
-  if (pieces.length < 1) {
-    return null;
-  }
-  let html = pieces[0]!;
+export function mvw(pieces: TemplateStringsArray, ...dependencies: unknown[]): Component {
+  let html = pieces[0] ?? '';
   const handlers: Handler[] = [];
   for (let i = 1; i < pieces.length; i++) {
     const dependency = dependencies[i - 1];
@@ -219,27 +225,20 @@ export function style(props: { [key: string]: string | number }): SafeHtml {
   for (const key in props) {
     if (Object.prototype.hasOwnProperty.call(props, key)) {
       const formattedKey = key.replace(/[A-Z]/g, c => '-' + c.toLowerCase());
-      const value = props[key];
-      if (typeof value !== 'number') {
-        css.push(`${formattedKey}: ${value}`);
-      } else if (value) {
-        css.push(`${formattedKey}: ${value}px`);
-      } else {
-        css.push(`${formattedKey}: 0`);
-      }
+      css.push(`${formattedKey}: ${props[key]};`);
     }
   }
-  return new SafeHtml(`style="${escape(css.join('; '))}"`);
+  return new SafeHtml(`style="${escape(css.join(' '))}"`);
 }
 
-export function bind(
+export function mount(
   parentElement: Element,
   fn: TemplateFunction,
   props?: Props,
   state?: Props,
 ): Promise<void> {
   return new Promise<void>((resolve, reject) => {
-    window.addEventListener('DOMContentLoaded', () => {
+    const render = () => {
       try {
         const root = new StateFrame(fn, props || {}, state || null);
         parentElement.innerHTML = root.toString();
@@ -248,6 +247,15 @@ export function bind(
         return;
       }
       resolve();
-    });
+    };
+    if (document.readyState !== 'loading') {
+      render();
+    } else {
+      window.addEventListener('DOMContentLoaded', render);
+    }
   });
+}
+
+export function mountBody(fn: TemplateFunction, props?: Props, state?: Props): Promise<void> {
+  return mount(document.body, fn, props, state);
 }

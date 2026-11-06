@@ -1,6 +1,6 @@
-import { bind, mvw } from './mvw.js';
+import { mountBody, mvw } from './mvw.js';
 
-const Hello = ({ self }, { what } = { what: 'world' }) => mvw`
+const Hello = ({ self }, { what = 'world' } = {}) => mvw`
   <div>
     <p>Hello, ${what}!</p>
     <p>
@@ -11,4 +11,4 @@ const Hello = ({ self }, { what } = { what: 'world' }) => mvw`
   </div>
 `;
 
-bind(document.body, Hello);
+mountBody(Hello);
