@@ -6,7 +6,7 @@ A minimalist MVW framework for non-upgradeable dApps.
 
 mvw.js is based on few highly consolidated browser technologies such as raw DOM, `<template>`
 elements, and template strings. It has zero dependencies. The compressed JavaScript file takes less
-than 1 KB.
+than 2 KB.
 
 ## Motivations
 
@@ -21,7 +21,7 @@ mvw.js is a lightweight and very stable library based on a few highly consolidat
 technologies: raw DOM, ES6, and `<template>` elements. mvw.js is designed with avoiding planned
 obsolescence as a first principle.
 
-mvw.js's browser coverage exceeds 96% based on caniuse.com data, and can only grow over time.
+mvw.js's browser coverage exceeds 97% based on caniuse.com data, and can only grow over time.
 
 ## Getting Started
 

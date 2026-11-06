@@ -12,8 +12,19 @@
   },
   "license": "Apache-2.0",
   "author": "Alberto La Rocca <alr@libernet.xyz>",
-  "type": "commonjs",
-  "main": "dist/index.js",
+  "type": "module",
+  "main": "dist/mvw.js",
+  "types": "dist/mvw.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/mvw.d.ts",
+      "default": "./dist/mvw.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
   "scripts": {
     "build": "npx tsc"
   },

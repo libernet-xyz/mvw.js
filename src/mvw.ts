@@ -3,7 +3,11 @@
 
 class Handler {
   private static _nextId = 1;
-  public static handlers: { [id: number]: EventListener } = Object.create(null);
+  private static handlers: { [id: number]: EventListener } = Object.create(null);
+
+  static {
+    (window as any).$__mvw_handlers = Handler.handlers;
+  }
 
   public readonly id: number;
 
@@ -15,9 +19,11 @@ class Handler {
   public toString(): string {
     return `"$__mvw_handlers[${this.id}].call(this, event)"`;
   }
-}
 
-(window as any).$__mvw_handlers = Handler.handlers;
+  public static destroy(id: number): void {
+    delete Handler.handlers[id];
+  }
+}
 
 export interface Props {
   [key: string]: unknown;
@@ -84,7 +90,7 @@ export class StateFrame {
     const ids = element.getAttribute('data-mvw-handlers');
     if (ids) {
       for (const id of ids.split(',')) {
-        delete Handler.handlers[parseInt(id, 10)];
+        Handler.destroy(parseInt(id, 10));
       }
     }
   }
@@ -133,11 +139,11 @@ export class StateFrame {
 
 export function escape(input: string): string {
   return input
-    .replace('&', '&amp;')
-    .replace('<', '&lt;')
-    .replace('>', '&gt;')
-    .replace('"', '&quot;')
-    .replace("'", '&apos;');
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
 }
 
 function stringify(dependency: unknown, handlers: Handler[]): string {

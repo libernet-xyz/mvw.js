@@ -1,4 +1,4 @@
-import { bind, mvw } from './mvw';
+import { bind, mvw } from './mvw.js';
 
 const Hello = ({ self }, { what } = { what: 'world' }) => mvw`
   <div>
