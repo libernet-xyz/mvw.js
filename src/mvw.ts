@@ -54,27 +54,30 @@ export class Component {
   }
 }
 
-export type TemplateFunction = (props: Props, state?: Props) => Component;
+export type TemplateFunction = (props: Props) => Component;
+
+export type StatefulProps = Props & { key: string };
+export type StatefulTemplateFunction = (props: StatefulProps, state: Props) => Component;
 
 export class StateFrame {
   private static _nextId = 1;
 
   public readonly id: number;
-  private readonly _fn: TemplateFunction;
-  private readonly _props: Props;
-  private _state: Props | null;
+  private readonly _fn: StatefulTemplateFunction;
+  private readonly _props: StatefulProps;
+  private _state: Props;
   private _component: Component;
 
-  public constructor(fn: TemplateFunction, props: Props, state: Props | null) {
+  public constructor(fn: StatefulTemplateFunction, props: StatefulProps, state: Props | null) {
     this.id = StateFrame._nextId++;
     this._fn = fn;
     this._props = { ...props, self: this };
-    this._state = state ? { ...state } : null;
+    this._state = { ...(state || {}) };
     this._component = this.render();
   }
 
   public render(): Component {
-    const component = this._state ? this._fn(this._props, this._state) : this._fn(this._props);
+    const component = this._fn(this._props, this._state);
     const fragment = component.template.content;
     const element = fragment.childNodes[0] as Element;
     if (element.hasAttribute('data-mvw-frame')) {
@@ -189,8 +192,18 @@ export function mvw(pieces: TemplateStringsArray, ...dependencies: unknown[]): C
   return new Component(html, handlers);
 }
 
-export function state(fn: TemplateFunction, props?: Props, state?: Props): StateFrame {
-  return new StateFrame(fn, props || {}, state || null);
+export function state(
+  fn: StatefulTemplateFunction,
+  props: StatefulProps,
+  state?: Props,
+): StateFrame {
+  return new StateFrame(fn, props, state || null);
+}
+
+export function stateful(
+  fn: StatefulTemplateFunction,
+): (props: StatefulProps, state?: Props) => StateFrame {
+  return (props: StatefulProps, state?: Props) => new StateFrame(fn, props, state || null);
 }
 
 export class SafeHtml {
@@ -233,14 +246,14 @@ export function style(props: { [key: string]: string | number }): SafeHtml {
 
 export function mount(
   parentElement: Element,
-  fn: TemplateFunction,
-  props?: Props,
+  fn: StatefulTemplateFunction,
+  props?: StatefulProps,
   state?: Props,
 ): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     const render = () => {
       try {
-        const root = new StateFrame(fn, props || {}, state || null);
+        const root = new StateFrame(fn, props || { key: 'root' }, state || null);
         parentElement.innerHTML = root.toString();
       } catch (e) {
         reject(e);
@@ -256,6 +269,10 @@ export function mount(
   });
 }
 
-export function mountBody(fn: TemplateFunction, props?: Props, state?: Props): Promise<void> {
+export function mountBody(
+  fn: StatefulTemplateFunction,
+  props?: StatefulProps,
+  state?: Props,
+): Promise<void> {
   return mount(document.body, fn, props, state);
 }

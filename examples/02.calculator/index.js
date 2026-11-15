@@ -42,7 +42,7 @@ const Keyboard = ({ onDigit, onDecimal, onOp, onEnter }) => mvw`
   </div>
 `;
 
-const App = ({ self }, { lhs = 0, op = null, rhs = null, decimal = 0 } = {}) => {
+const App = ({ self }, { lhs = 0, op = null, rhs = null, decimal = 0 }) => {
   const solve = () => {
     switch (op) {
       case '+':
