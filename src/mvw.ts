@@ -248,7 +248,21 @@ export function style(props: { [key: string]: string | number }): SafeHtml {
   return new SafeHtml(`style="${escape(css.join(' '))}"`);
 }
 
-export function mount<P extends StatefulProps = StatefulProps, S extends Props = Props>(
+export function mount<S extends Props>(
+  parentElement: Element,
+  fn: StatefulTemplateFunction<StatefulProps, S>,
+  props?: StatefulProps,
+  state?: Partial<S>,
+): Promise<void>;
+
+export function mount<P extends StatefulProps, S extends Props>(
+  parentElement: Element,
+  fn: StatefulTemplateFunction<P, S>,
+  props: P,
+  state?: Partial<S>,
+): Promise<void>;
+
+export function mount<P extends StatefulProps, S extends Props>(
   parentElement: Element,
   fn: StatefulTemplateFunction<P, S>,
   props?: P,
@@ -273,10 +287,22 @@ export function mount<P extends StatefulProps = StatefulProps, S extends Props =
   });
 }
 
-export function mountBody<P extends StatefulProps = StatefulProps, S extends Props = Props>(
+export function mountBody<S extends Props>(
+  fn: StatefulTemplateFunction<StatefulProps, S>,
+  props?: StatefulProps,
+  state?: Partial<S>,
+): Promise<void>;
+
+export function mountBody<P extends StatefulProps, S extends Props>(
+  fn: StatefulTemplateFunction<P, S>,
+  props: P,
+  state?: Partial<S>,
+): Promise<void>;
+
+export function mountBody<P extends StatefulProps, S extends Props>(
   fn: StatefulTemplateFunction<P, S>,
   props?: P,
   state?: Partial<S>,
 ): Promise<void> {
-  return mount(document.body, fn, props, state);
+  return mount(document.body, fn, props as P, state);
 }
