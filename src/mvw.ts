@@ -106,23 +106,26 @@ export class StateFrame<P extends StatefulProps = StatefulProps, S extends Props
 
   public update(state: Partial<S>): StateFrame<P, S> {
     const oldElement = document.querySelector(`[data-mvw-frame="${this.id}"]`);
+    if (!oldElement) {
+      console.error(`element ${this.id} not found`);
+    }
+    const oldState = this._state;
+    this._state = { ...oldState, ...state };
+    let component: Component;
+    try {
+      component = this.render();
+    } catch (error) {
+      this._state = oldState;
+      throw error;
+    }
+    this._component = component;
     if (oldElement) {
       const children = oldElement.querySelectorAll('[data-mvw-handlers]');
       for (let i = 0; i < children.length; i++) {
         StateFrame._destroyHandlers(children[i]!);
       }
       StateFrame._destroyHandlers(oldElement);
-    } else {
-      console.error(`element ${this.id} not found`);
-    }
-    for (const key in state) {
-      if (Object.prototype.hasOwnProperty.call(state, key)) {
-        this._state[key] = state[key];
-      }
-    }
-    this._component = this.render();
-    if (oldElement) {
-      const newElement = this._component.template.content.childNodes[0] as Element;
+      const newElement = component.template.content.childNodes[0] as Element;
       oldElement.parentNode!.replaceChild(newElement, oldElement);
     }
     return this;
