@@ -26,7 +26,7 @@ class Handler {
 }
 
 export interface Props {
-  [key: string]: unknown;
+  [key: string]: any;
 }
 
 export class Component {
@@ -59,7 +59,7 @@ export type TemplateFunction<P extends Props> = (props: P) => Component;
 export type StatefulProps = Props & { key: string };
 
 export type StatefulTemplateFunction<P extends StatefulProps, S extends Props> = (
-  props: P,
+  props: P & { self: StateFrame<P, S> },
   state: S,
 ) => Component;
 
@@ -68,7 +68,7 @@ export class StateFrame<P extends StatefulProps = StatefulProps, S extends Props
 
   public readonly id: number;
   private readonly _fn: StatefulTemplateFunction<P, S>;
-  private readonly _props: P;
+  private readonly _props: P & { self: StateFrame<P, S> };
   private _state: Partial<S>;
   private _component: Component;
 
@@ -76,7 +76,7 @@ export class StateFrame<P extends StatefulProps = StatefulProps, S extends Props
     this.id = StateFrame._nextId++;
     this._fn = fn;
     this._props = { ...props, self: this };
-    this._state = { ...(state || ({} as S)) };
+    this._state = { ...(state || ({} as Partial<S>)) };
     this._component = this.render();
   }
 
@@ -115,12 +115,9 @@ export class StateFrame<P extends StatefulProps = StatefulProps, S extends Props
     } else {
       console.error(`element ${this.id} not found`);
     }
-    if (!this._state) {
-      this._state = {};
-    }
     for (const key in state) {
       if (Object.prototype.hasOwnProperty.call(state, key)) {
-        this._state[key] = state[key]!;
+        this._state[key] = state[key];
       }
     }
     this._component = this.render();
