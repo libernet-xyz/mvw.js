@@ -29,7 +29,7 @@ export interface Props {
   [key: string]: any;
 }
 
-export class Component {
+class Component {
   public readonly template: HTMLTemplateElement;
 
   public constructor(html: string, handlers?: Handler[]) {
@@ -54,6 +54,8 @@ export class Component {
   }
 }
 
+export type { Component };
+
 export type TemplateFunction<P extends Props> = (props: P) => Component;
 
 export type StatefulProps = Props & { key: string };
@@ -77,10 +79,10 @@ export class StateFrame<P extends StatefulProps = StatefulProps, S extends Props
     this._fn = fn;
     this._props = { ...props, self: this };
     this._state = { ...(state || ({} as Partial<S>)) };
-    this._component = this.render();
+    this._component = this._render();
   }
 
-  public render(): Component {
+  private _render(): Component {
     const component = this._fn(this._props, this._state as S);
     const fragment = component.template.content;
     const element = fragment.childNodes[0] as Element;
@@ -113,7 +115,7 @@ export class StateFrame<P extends StatefulProps = StatefulProps, S extends Props
     this._state = { ...oldState, ...state };
     let component: Component;
     try {
-      component = this.render();
+      component = this._render();
     } catch (error) {
       this._state = oldState;
       throw error;
@@ -186,7 +188,22 @@ function stringify(dependency: unknown, handlers: Handler[]): string {
   }
 }
 
-export function mvw(pieces: TemplateStringsArray, ...dependencies: unknown[]): Component {
+export type EventHandler = (event: Event) => unknown;
+
+export type Dependency =
+  | string
+  | number
+  | bigint
+  | boolean
+  | null
+  | undefined
+  | Component
+  | StateFrame<any, any>
+  | SafeHtml
+  | EventHandler
+  | readonly Dependency[];
+
+export function mvw(pieces: TemplateStringsArray, ...dependencies: Dependency[]): Component {
   let html = pieces[0] ?? '';
   const handlers: Handler[] = [];
   for (let i = 1; i < pieces.length; i++) {
@@ -210,13 +227,15 @@ export function stateful<P extends StatefulProps = StatefulProps, S extends Prop
   return (props: P, state?: Partial<S>) => new StateFrame<P, S>(fn, props, state || null);
 }
 
-export class SafeHtml {
+class SafeHtml {
   public constructor(public readonly html: string) {}
 
   public toString(): string {
     return this.html;
   }
 }
+
+export type { SafeHtml };
 
 export function html(pieces: TemplateStringsArray): SafeHtml {
   if (pieces.length > 1) {
@@ -228,13 +247,15 @@ export function html(pieces: TemplateStringsArray): SafeHtml {
   return new SafeHtml('');
 }
 
-export function select<
-  P extends Props = Props,
-  C extends { [value: string]: (props: P, state?: Props) => unknown } = {},
->(expression: unknown, cases: C, props?: P, state?: Props): ReturnType<C[keyof C]> {
+export function select<P extends Props, R extends { [value: string]: unknown }>(
+  expression: unknown,
+  cases: { [K in keyof R]: (props: NoInfer<P>, state?: Props) => R[K] },
+  props?: P,
+  state?: Props,
+): R[keyof R] {
   const value = '' + expression;
   if (Object.prototype.hasOwnProperty.call(cases, value)) {
-    return cases[value]!.call(null, props || ({} as P), state || void 0) as ReturnType<C[keyof C]>;
+    return cases[value]!(props || ({} as P), state);
   } else {
     throw new Error(`invalid select key ${JSON.stringify(value)}`);
   }
