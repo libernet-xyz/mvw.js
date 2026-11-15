@@ -54,30 +54,34 @@ export class Component {
   }
 }
 
-export type TemplateFunction = (props: Props) => Component;
+export type TemplateFunction<P extends Props> = (props: P) => Component;
 
 export type StatefulProps = Props & { key: string };
-export type StatefulTemplateFunction = (props: StatefulProps, state: Props) => Component;
 
-export class StateFrame {
+export type StatefulTemplateFunction<P extends StatefulProps, S extends Props> = (
+  props: P,
+  state: S,
+) => Component;
+
+export class StateFrame<P extends StatefulProps = StatefulProps, S extends Props = Props> {
   private static _nextId = 1;
 
   public readonly id: number;
-  private readonly _fn: StatefulTemplateFunction;
-  private readonly _props: StatefulProps;
-  private _state: Props;
+  private readonly _fn: StatefulTemplateFunction<P, S>;
+  private readonly _props: P;
+  private _state: Partial<S>;
   private _component: Component;
 
-  public constructor(fn: StatefulTemplateFunction, props: StatefulProps, state: Props | null) {
+  public constructor(fn: StatefulTemplateFunction<P, S>, props: P, state: Partial<S> | null) {
     this.id = StateFrame._nextId++;
     this._fn = fn;
     this._props = { ...props, self: this };
-    this._state = { ...(state || {}) };
+    this._state = { ...(state || ({} as S)) };
     this._component = this.render();
   }
 
   public render(): Component {
-    const component = this._fn(this._props, this._state);
+    const component = this._fn(this._props, this._state as S);
     const fragment = component.template.content;
     const element = fragment.childNodes[0] as Element;
     if (element.hasAttribute('data-mvw-frame')) {
@@ -100,7 +104,7 @@ export class StateFrame {
     }
   }
 
-  public update(state: Props): StateFrame {
+  public update(state: Partial<S>): StateFrame<P, S> {
     const oldElement = document.querySelector(`[data-mvw-frame="${this.id}"]`);
     if (oldElement) {
       const children = oldElement.querySelectorAll('[data-mvw-handlers]');
@@ -116,7 +120,7 @@ export class StateFrame {
     }
     for (const key in state) {
       if (Object.prototype.hasOwnProperty.call(state, key)) {
-        this._state[key] = state[key];
+        this._state[key] = state[key]!;
       }
     }
     this._component = this.render();
@@ -127,7 +131,7 @@ export class StateFrame {
     return this;
   }
 
-  public updateSoon(state: Props): Promise<void> {
+  public updateSoon(state: Partial<S>): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       window.setTimeout(() => {
         try {
@@ -192,18 +196,18 @@ export function mvw(pieces: TemplateStringsArray, ...dependencies: unknown[]): C
   return new Component(html, handlers);
 }
 
-export function state(
-  fn: StatefulTemplateFunction,
-  props: StatefulProps,
-  state?: Props,
-): StateFrame {
-  return new StateFrame(fn, props, state || null);
+export function state<P extends StatefulProps = StatefulProps, S extends Props = Props>(
+  fn: StatefulTemplateFunction<P, S>,
+  props: P,
+  state?: Partial<S>,
+): StateFrame<P, S> {
+  return new StateFrame<P, S>(fn, props, state || null);
 }
 
-export function stateful(
-  fn: StatefulTemplateFunction,
-): (props: StatefulProps, state?: Props) => StateFrame {
-  return (props: StatefulProps, state?: Props) => new StateFrame(fn, props, state || null);
+export function stateful<P extends StatefulProps = StatefulProps, S extends Props = Props>(
+  fn: StatefulTemplateFunction<P, S>,
+): (props: P, state?: Partial<S>) => StateFrame<P, S> {
+  return (props: P, state?: Partial<S>) => new StateFrame<P, S>(fn, props, state || null);
 }
 
 export class SafeHtml {
@@ -224,13 +228,16 @@ export function html(pieces: TemplateStringsArray): SafeHtml {
   return new SafeHtml('');
 }
 
-export function select<Component>(
-  expression: unknown,
-  cases: { [value: string]: (props?: Props, state?: Props) => Component },
-  props?: Props,
-  state?: Props,
-): Component {
-  return cases[expression as string]!.call(null, props || {}, state || void 0);
+export function select<
+  P extends Props = Props,
+  C extends { [value: string]: (props: P, state?: Props) => unknown } = {},
+>(expression: unknown, cases: C, props?: P, state?: Props): ReturnType<C[keyof C]> {
+  const value = '' + expression;
+  if (Object.prototype.hasOwnProperty.call(cases, value)) {
+    return cases[value]!.call(null, props || ({} as P), state || void 0) as ReturnType<C[keyof C]>;
+  } else {
+    throw new Error(`invalid select key ${JSON.stringify(value)}`);
+  }
 }
 
 export function style(props: { [key: string]: string | number }): SafeHtml {
@@ -244,16 +251,16 @@ export function style(props: { [key: string]: string | number }): SafeHtml {
   return new SafeHtml(`style="${escape(css.join(' '))}"`);
 }
 
-export function mount(
+export function mount<P extends StatefulProps = StatefulProps, S extends Props = Props>(
   parentElement: Element,
-  fn: StatefulTemplateFunction,
-  props?: StatefulProps,
-  state?: Props,
+  fn: StatefulTemplateFunction<P, S>,
+  props?: P,
+  state?: Partial<S>,
 ): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     const render = () => {
       try {
-        const root = new StateFrame(fn, props || { key: 'root' }, state || null);
+        const root = new StateFrame(fn, props || ({ key: 'root' } as P), state || null);
         parentElement.innerHTML = root.toString();
       } catch (e) {
         reject(e);
@@ -269,10 +276,10 @@ export function mount(
   });
 }
 
-export function mountBody(
-  fn: StatefulTemplateFunction,
-  props?: StatefulProps,
-  state?: Props,
+export function mountBody<P extends StatefulProps = StatefulProps, S extends Props = Props>(
+  fn: StatefulTemplateFunction<P, S>,
+  props?: P,
+  state?: Partial<S>,
 ): Promise<void> {
   return mount(document.body, fn, props, state);
 }
