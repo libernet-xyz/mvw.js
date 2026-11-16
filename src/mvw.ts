@@ -74,11 +74,13 @@ export class StateFrame<P extends StatefulProps = StatefulProps, S extends Props
   private readonly _props: P & { self: StateFrame<P, S> };
   private _state: Partial<S>;
   private _component: Component;
+
+  private _previousChildren: { [key: string]: StateFrame<any, any> } = Object.create(null);
   private _children: { [key: string]: StateFrame<any, any> } = Object.create(null);
 
   public constructor(fn: StatefulTemplateFunction<P, S>, props: P, state: Partial<S> | null) {
-    if (!Object.prototype.hasOwnProperty.call(props, 'key')) {
-      throw new Error('stateful components must have a "key" property');
+    if (!props || typeof props['key'] !== 'string') {
+      throw new Error('stateful components must have a string "key" property');
     }
 
     this.id = StateFrame._nextId++;
@@ -92,17 +94,23 @@ export class StateFrame<P extends StatefulProps = StatefulProps, S extends Props
     let currentState: Partial<S> = {};
     if (parent) {
       if (key in parent._children) {
-        const child = parent._children[key]! as StateFrame<P, S>;
+        throw new Error(`duplicate component key ${JSON.stringify(key)}`);
+      }
+      if (key in parent._previousChildren) {
+        const child = parent._previousChildren[key]! as StateFrame<P, S>;
         currentState = { ...child._state };
       }
       parent._children[key] = this;
     }
 
-    this._state = { ...currentState, ...(state || ({} as Partial<S>)) };
+    this._state = { ...(state || ({} as Partial<S>)), ...currentState };
     this._component = this._render();
   }
 
   private _render(): Component {
+    const previousChildren = this._children;
+    this._previousChildren = previousChildren;
+    this._children = Object.create(null);
     const stack = StateFrame._stack;
     stack.push(this);
     try {
@@ -114,8 +122,12 @@ export class StateFrame<P extends StatefulProps = StatefulProps, S extends Props
       }
       element.setAttribute('data-mvw-frame', '' + this.id);
       return component;
+    } catch (error) {
+      this._children = previousChildren;
+      throw error;
     } finally {
       stack.pop();
+      this._previousChildren = Object.create(null);
     }
   }
 
