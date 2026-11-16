@@ -1,6 +1,6 @@
 import { mountBody, mvw } from './mvw.js';
 
-const Hello = ({ self }, { what = 'world' } = {}) => mvw`
+const Hello = ({ self }, { what = 'world' }) => mvw`
   <div>
     <p>Hello, ${what}!</p>
     <p>
