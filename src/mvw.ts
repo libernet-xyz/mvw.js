@@ -114,9 +114,17 @@ class StateFrame<P extends StatefulProps, S extends Props> {
         frame = new StateFrame<P, S>(fn, props, state);
       } else {
         frame = child;
+        const oldProps = frame._props;
+        const oldState = frame._state;
         frame._props = { ...props, self: frame };
         frame._state = { ...(state || ({} as Partial<S>)), ...frame._state };
-        frame._component = frame._render();
+        try {
+          frame._component = frame._render();
+        } catch (error) {
+          frame._props = oldProps;
+          frame._state = oldState;
+          throw error;
+        }
       }
     } else {
       frame = new StateFrame<P, S>(fn, props, state);
