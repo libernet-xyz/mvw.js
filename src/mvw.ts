@@ -106,28 +106,21 @@ class StateFrame<P extends StatefulProps, S extends Props> {
     if (key in parent._children) {
       throw new Error(`duplicate component key ${JSON.stringify(key)}`);
     }
+    const frame = parent._previousChildren[key] as StateFrame<P, S> | undefined;
+    if (!frame || frame._fn !== fn) {
+      return (parent._children[key] = new StateFrame<P, S>(fn, props, state));
+    }
 
-    let frame: StateFrame<P, S>;
-    if (key in parent._previousChildren) {
-      const child = parent._previousChildren[key]! as StateFrame<P, S>;
-      if (child._fn !== fn) {
-        frame = new StateFrame<P, S>(fn, props, state);
-      } else {
-        frame = child;
-        const oldProps = frame._props;
-        const oldState = frame._state;
-        frame._props = { ...props, self: frame };
-        frame._state = { ...(state || ({} as Partial<S>)), ...frame._state };
-        try {
-          frame._component = frame._render();
-        } catch (error) {
-          frame._props = oldProps;
-          frame._state = oldState;
-          throw error;
-        }
-      }
-    } else {
-      frame = new StateFrame<P, S>(fn, props, state);
+    const oldProps = frame._props;
+    const oldState = frame._state;
+    frame._props = { ...props, self: frame };
+    frame._state = { ...(state || ({} as Partial<S>)), ...frame._state };
+    try {
+      frame._component = frame._render();
+    } catch (error) {
+      frame._props = oldProps;
+      frame._state = oldState;
+      throw error;
     }
 
     parent._children[key] = frame;
