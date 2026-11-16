@@ -65,46 +65,65 @@ export type StatefulTemplateFunction<P extends StatefulProps, S extends Props> =
   state: S,
 ) => Component;
 
-export class StateFrame<P extends StatefulProps = StatefulProps, S extends Props = Props> {
+class StateFrame<P extends StatefulProps, S extends Props> {
   private static _nextId = 1;
   private static _stack: StateFrame<any, any>[] = [];
 
   public readonly id: number;
   private readonly _fn: StatefulTemplateFunction<P, S>;
-  private readonly _props: P & { self: StateFrame<P, S> };
+  private _props: P & { self: StateFrame<P, S> };
   private _state: Partial<S>;
   private _component: Component;
 
   private _previousChildren: { [key: string]: StateFrame<any, any> } = Object.create(null);
   private _children: { [key: string]: StateFrame<any, any> } = Object.create(null);
 
-  public constructor(fn: StatefulTemplateFunction<P, S>, props: P, state: Partial<S> | null) {
+  private constructor(fn: StatefulTemplateFunction<P, S>, props: P, state: Partial<S> | null) {
+    this.id = StateFrame._nextId++;
+    this._fn = fn;
+    this._props = { ...props, self: this };
+    this._state = { ...(state || ({} as Partial<S>)) };
+    this._component = this._render();
+  }
+
+  public static create<P extends StatefulProps, S extends Props>(
+    fn: StatefulTemplateFunction<P, S>,
+    props: P,
+    state: Partial<S> | null,
+  ): StateFrame<P, S> {
     if (!props || typeof props['key'] !== 'string') {
       throw new Error('stateful components must have a string "key" property');
     }
 
-    this.id = StateFrame._nextId++;
-    this._fn = fn;
-    this._props = { ...props, self: this };
-
     const stack = StateFrame._stack;
-    const parent = stack.length > 0 ? stack[stack.length - 1]! : null;
 
-    const key = props['key'];
-    let currentState: Partial<S> = {};
-    if (parent) {
-      if (key in parent._children) {
-        throw new Error(`duplicate component key ${JSON.stringify(key)}`);
-      }
-      if (key in parent._previousChildren) {
-        const child = parent._previousChildren[key]! as StateFrame<P, S>;
-        currentState = { ...child._state };
-      }
-      parent._children[key] = this;
+    const parent = stack.length > 0 ? stack[stack.length - 1]! : null;
+    if (!parent) {
+      return new StateFrame(fn, props, state);
     }
 
-    this._state = { ...(state || ({} as Partial<S>)), ...currentState };
-    this._component = this._render();
+    const key = props['key'];
+    if (key in parent._children) {
+      throw new Error(`duplicate component key ${JSON.stringify(key)}`);
+    }
+
+    let frame: StateFrame<P, S>;
+    if (key in parent._previousChildren) {
+      const child = parent._previousChildren[key]! as StateFrame<P, S>;
+      if (child._fn !== fn) {
+        frame = new StateFrame<P, S>(fn, props, state);
+      } else {
+        frame = child;
+        frame._props = { ...props, self: frame };
+        frame._state = { ...(state || ({} as Partial<S>)), ...frame._state };
+        frame._component = frame._render();
+      }
+    } else {
+      frame = new StateFrame<P, S>(fn, props, state);
+    }
+
+    parent._children[key] = frame;
+    return frame;
   }
 
   private _render(): Component {
@@ -186,6 +205,8 @@ export class StateFrame<P extends StatefulProps = StatefulProps, S extends Props
   }
 }
 
+export type { StateFrame };
+
 export function escape(input: string): string {
   return input
     .replace(/&/g, '&amp;')
@@ -256,13 +277,13 @@ export function state<P extends StatefulProps = StatefulProps, S extends Props =
   props: P,
   state?: Partial<S>,
 ): StateFrame<P, S> {
-  return new StateFrame<P, S>(fn, props, state || null);
+  return StateFrame.create<P, S>(fn, props, state || null);
 }
 
 export function stateful<P extends StatefulProps = StatefulProps, S extends Props = Props>(
   fn: StatefulTemplateFunction<P, S>,
 ): (props: P, state?: Partial<S>) => StateFrame<P, S> {
-  return (props: P, state?: Partial<S>) => new StateFrame<P, S>(fn, props, state || null);
+  return (props: P, state?: Partial<S>) => StateFrame.create<P, S>(fn, props, state || null);
 }
 
 class SafeHtml {
@@ -333,7 +354,7 @@ export function mount<P extends StatefulProps, S extends Props>(
   return new Promise<void>((resolve, reject) => {
     const render = () => {
       try {
-        const root = new StateFrame(fn, props || ({ key: 'root' } as P), state || null);
+        const root = StateFrame.create<P, S>(fn, props || ({ key: 'root' } as P), state || null);
         parentElement.innerHTML = root.toString();
       } catch (e) {
         reject(e);
