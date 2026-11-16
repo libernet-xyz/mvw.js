@@ -67,30 +67,56 @@ export type StatefulTemplateFunction<P extends StatefulProps, S extends Props> =
 
 export class StateFrame<P extends StatefulProps = StatefulProps, S extends Props = Props> {
   private static _nextId = 1;
+  private static _stack: StateFrame<any, any>[] = [];
 
   public readonly id: number;
   private readonly _fn: StatefulTemplateFunction<P, S>;
   private readonly _props: P & { self: StateFrame<P, S> };
   private _state: Partial<S>;
   private _component: Component;
+  private _children: { [key: string]: StateFrame<any, any> } = Object.create(null);
 
   public constructor(fn: StatefulTemplateFunction<P, S>, props: P, state: Partial<S> | null) {
+    if (!Object.prototype.hasOwnProperty.call(props, 'key')) {
+      throw new Error('stateful components must have a "key" property');
+    }
+
     this.id = StateFrame._nextId++;
     this._fn = fn;
     this._props = { ...props, self: this };
-    this._state = { ...(state || ({} as Partial<S>)) };
+
+    const stack = StateFrame._stack;
+    const parent = stack.length > 0 ? stack[stack.length - 1]! : null;
+
+    const key = props['key'];
+    let currentState: Partial<S> = {};
+    if (parent) {
+      if (key in parent._children) {
+        const child = parent._children[key]! as StateFrame<P, S>;
+        currentState = { ...child._state };
+      }
+      parent._children[key] = this;
+    }
+
+    this._state = { ...currentState, ...(state || ({} as Partial<S>)) };
     this._component = this._render();
   }
 
   private _render(): Component {
-    const component = this._fn(this._props, this._state as S);
-    const fragment = component.template.content;
-    const element = fragment.childNodes[0] as Element;
-    if (element.hasAttribute('data-mvw-frame')) {
-      throw new Error('the root element of a component cannot be another stateful component');
+    const stack = StateFrame._stack;
+    stack.push(this);
+    try {
+      const component = this._fn(this._props, this._state as S);
+      const fragment = component.template.content;
+      const element = fragment.childNodes[0] as Element;
+      if (element.hasAttribute('data-mvw-frame')) {
+        throw new Error('the root element of a component cannot be another stateful component');
+      }
+      element.setAttribute('data-mvw-frame', '' + this.id);
+      return component;
+    } finally {
+      stack.pop();
     }
-    element.setAttribute('data-mvw-frame', '' + this.id);
-    return component;
   }
 
   public toString(): string {
